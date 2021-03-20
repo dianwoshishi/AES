@@ -19,6 +19,8 @@ $(TARGET): $(OBJ)
 gen:
 	# make clean_gen
 	(seq 10 | xargs -i dd if=/dev/random of=tmp_file/{}.dat bs=500 count=5 ) > /dev/null
+	dd if=/dev/random of=tmp_file/key.dat bs=16 count=1
+	dd if=/dev/random of=tmp_file/iv.dat bs=16 count=1
 # 清空生成的测试文件
 clean_gen:
 	rm -rf tmp_file
