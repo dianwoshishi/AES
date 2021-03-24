@@ -4,6 +4,7 @@
 
 const unsigned int BLOCK_BYTES_LENGTH = 16 * sizeof(unsigned char);
 
+//标准S盒的不可约多项式
 #define ploy 0x11b
 
 TEST(KeyLengths, KeyLength128) 

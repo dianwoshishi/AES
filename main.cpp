@@ -49,6 +49,7 @@ void ECB(AES& aes, uint8_t* key)
             
             // aes.printHexArray(plain, length);
             out = aes.EncryptECB(plain, length, key,  len);
+            
             enFile.write((char*)out, len);
             enFile.close();
             // aes.printHexArray(out, length);
@@ -62,6 +63,7 @@ void ECB(AES& aes, uint8_t* key)
             }
 
             out = aes.DecryptECB(out, length, key);
+            printf("ECB_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
             // aes.printHexArray(out, length);
             deFile.write((char*)out, len);
             deFile.close();
@@ -124,6 +126,7 @@ void CBC(AES& aes, uint8_t* key, uint8_t* iv)
         }
 
         out = aes.DecryptCBC(out, length, key, iv);
+        printf("CBC_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
         deFile.write((char*)out, len);
         deFile.close();
         delete []plain;
@@ -183,6 +186,7 @@ void OFB(AES& aes, uint8_t* key, uint8_t* iv)
         }
 
         out = aes.DecryptOFB(out, length, key, iv);
+        printf("OFB_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
         deFile.write((char*)out, len);
         deFile.close();
         delete []plain;
@@ -243,6 +247,7 @@ void CFB(AES& aes, uint8_t* key, uint8_t* iv)
         }
 
         out = aes.DecryptCFB(out, length, key, iv);
+        printf("CFB_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
         deFile.write((char*)out, len);
         deFile.close();
         delete []plain;
@@ -304,6 +309,69 @@ void CTR(AES& aes, uint8_t* key, uint8_t* iv)
         }
 
         out = aes.DecryptCTR(out, length, key, iv);
+        printf("CTR_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
+        deFile.write((char*)out, len);
+        deFile.close();
+        delete []plain;
+        delete []out;
+
+#ifdef DEBUG
+    clock_t time_end=clock();
+    cout<<"time use:"<<1000*(time_end-time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
+#endif // DEBUG
+
+    }
+
+}
+
+void XTS(AES& aes, uint8_t* key, uint8_t* iv)
+{
+    
+    for(int i = 1; i <= fN; i++){
+#ifdef DEBUG
+    clock_t time_start=clock();
+#endif // DEBUG
+        string filename = "tmp_file/" + to_string(i) + ".dat";
+        ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
+        if (!inFile) {
+            cout << "Source file open error." << filename<<  endl;
+            return ;
+        }
+        unsigned int l, length;
+        l = inFile.tellg();
+        inFile.seekg(0, ios::end);
+        length = inFile.tellg();
+        inFile.seekg(0, ios::beg);
+        // length = 16;
+
+        uint8_t *plain = new uint8_t[length];
+        
+        inFile.read((char*)plain, length);
+
+        inFile.close();
+        
+        ofstream enFile(filename + ".ctr.en", ios::binary | ios::out);  //以二进制写模式打开文件
+        if (!enFile) {
+            cout << "New file open error." << endl;
+            return ;
+        }
+
+        
+        unsigned int len = 0;
+        // aes.printHexArray(plain, length);
+        unsigned char *out = aes.EncryptXTS(plain, length, key, iv);
+        enFile.write((char*)out, len);
+        enFile.close();
+        // aes.printHexArray(out, length);
+
+        ofstream deFile(filename + ".ctr.de", ios::binary | ios::out);  //以二进制写模式打开文件
+        if (!deFile) {
+            cout << "New file open error." << endl;
+            return ;
+        }
+
+        out = aes.DecryptXTS(out, length, key, iv);
+        printf("XTS_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
         deFile.write((char*)out, len);
         deFile.close();
         delete []plain;
@@ -330,9 +398,6 @@ uint8_t *getNonce(uint8_t n)
     return nonce;
 }
 
-#define ploy 0x13f
-
-
 void ReadBytes(char* filename, uint32_t start, uint32_t len, unsigned char* buf){
     ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
     if (!inFile) {
@@ -351,6 +416,10 @@ void ReadBytes(char* filename, uint32_t start, uint32_t len, unsigned char* buf)
 
     inFile.close();
 }
+
+//设置S盒的不可约多项式，从0x1xx代表x^8 + xxx
+#define ploy 0x13f
+
 
 int main(int argc, char *argv[])
 {
@@ -381,6 +450,8 @@ int main(int argc, char *argv[])
     cout << "ctr" << endl;
     // uint8_t *nonces = new getNonce(16);
     CTR(aes, key, iv);
+    cout << "xts" << endl;
+    XTS(aes, key, iv);
 
 	return 0;
 }

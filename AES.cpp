@@ -242,14 +242,151 @@ unsigned char *AES::DecryptCTR(unsigned char in[], unsigned int inLen, unsigned 
     return out;
 }
 
-unsigned char *AES::EncryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned int &outLen)
-{
-    return nullptr;
+void GF_Mutiplication_xts(uint8_t *T, int BLOCK_SIZE){
+
+    uint32_t x;
+    uint8_t t, tt;
+    
+    for (x = t = 0;x < BLOCK_SIZE;x ++) {
+        tt = *(T + x) >> 7;
+        *(T + x) = ((*(T + x) << 1) | t) & 0xFF;
+        t = tt;
+    }
+    if (tt) {
+        *(T) ^= 0x87;
+    } 
 }
 
-unsigned char *AES::DecryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[])
+unsigned char *AES::EncryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv)
 {
-    return nullptr;
+    int KEY_SIZE = 4 * this->Nb;
+    int BLOCK_SIZE = 4 * this->Nb;
+    uint8_t key2[BLOCK_SIZE];
+
+    int i,j,tmp;
+	  unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char)*BLOCK_SIZE);//encrypted key_2
+	  unsigned char *PP = (unsigned char *)malloc(sizeof(unsigned char)*BLOCK_SIZE);//pp
+    unsigned char *CC = (unsigned char *)malloc(sizeof(unsigned char)*BLOCK_SIZE);//cc
+
+    unsigned char *out = new unsigned char[inLen];
+    
+    unsigned char *roundKeys = new unsigned char[4 * Nb * (Nr + 1)];
+    KeyExpansion(key, roundKeys);
+
+    for (i = 0;i < BLOCK_SIZE;i ++){
+        *(key2 + i) = *(iv + i);
+    } // copy initial vector to use ENC / DEC.
+
+    EncryptBlock(key2,T,roundKeys);
+
+    for (i = 0;i < inLen/BLOCK_SIZE;i ++){
+
+    		for (j = 0;j < BLOCK_SIZE;j ++){
+    			*(PP + j) = in[ i*BLOCK_SIZE + j ] ^ *(T + j);
+    		}// create PP blocks.
+    		EncryptBlock(PP,CC,roundKeys);
+    		// create CC blocks.
+    		for (j = 0;j < BLOCK_SIZE;j ++){
+    			out[ i*BLOCK_SIZE + j ] = *(CC + j) ^ *(T + j);
+    		}// create ciper blocks.
+    		GF_Mutiplication_xts(T,BLOCK_SIZE);
+    		// create tweakable block.
+    	}// when plain text is 16 multiples, it's over.
+
+    	if (inLen%BLOCK_SIZE != 0){
+    		// cipertext stealing.
+
+    		for (j = 0;j < (inLen%BLOCK_SIZE);j ++){
+    			out[ i*BLOCK_SIZE + j ] = out[ (i-1)*16 + j ];
+    			*(PP + j) = *(T + j) ^ in[ i*BLOCK_SIZE + j ];
+    		}// shift and XOR.
+    		for (j = inLen%BLOCK_SIZE;j < BLOCK_SIZE;j ++){
+    			*(PP + j) = *(T + j) ^ out[ (i-1)*BLOCK_SIZE + j ];
+    		}// create Additional PP blocks.
+    		EncryptBlock(PP,CC,roundKeys);
+    		// create Additional CC blocks.
+    		for (j = 0;j < BLOCK_SIZE;j ++){
+    			out[ (i-1)*BLOCK_SIZE + j ] = *(T + j) ^ *(CC + j);
+    		}// create Additional ciper blocks.
+
+    	}// when plain text length is not 16 multiples, it's done.
+
+    return out;
+}
+
+unsigned char *AES::DecryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[],unsigned char *iv)
+{
+
+  int i,j,tmp;
+
+  int KEY_SIZE = 16;
+  int BLOCK_SIZE = 16;
+  uint8_t key2[BLOCK_SIZE];
+
+  unsigned char *T = (unsigned char *)malloc(sizeof(unsigned char)*BLOCK_SIZE);//encrypted key_2
+  unsigned char *T2 = (unsigned char *)malloc(sizeof(unsigned char)*BLOCK_SIZE);//encrypted key_2
+  unsigned char *PP = (unsigned char *)malloc(sizeof(unsigned char)*BLOCK_SIZE);//pp
+  unsigned char *CC = (unsigned char *)malloc(sizeof(unsigned char)*BLOCK_SIZE);//cc
+
+  unsigned char *out = new unsigned char[inLen];
+  
+  unsigned char *roundKeys = new unsigned char[4 * Nb * (Nr + 1)];
+  KeyExpansion(key, roundKeys);
+
+  for (i = 0;i < BLOCK_SIZE;i ++){
+        *(key2 + i) = *(iv + i);
+    } // copy initial vector to use ENC / DEC.
+
+  EncryptBlock(key2,T,roundKeys);
+
+  int check = (inLen%BLOCK_SIZE==0) ? 0 : 1; 
+  // judge variable that size%BLOCK_SIZE is 0 or is not 0.
+  // check == 0 is size%BLOCK_SIZE == 0.
+  // check == 1 is size%BLOCK_SIZE != 0.
+  for (i = 0;i < inLen/BLOCK_SIZE;i ++){
+    if (i == inLen/BLOCK_SIZE - 1 && check) {
+        tmp = inLen/BLOCK_SIZE - 1;
+        break;
+    }
+    // when ciper text length is not 16 multiples.
+    for (j = 0;j < BLOCK_SIZE;j ++){
+    	*(CC + j) = in[ i*BLOCK_SIZE + j ] ^ *(T + j);
+    		}// create PP blocks.
+			DecryptBlock(CC,PP,roundKeys);
+			// create CC blocks.
+			for (j = 0;j < BLOCK_SIZE;j ++){
+				out[ i*BLOCK_SIZE + j ] = *(PP + j) ^ *(T + j);
+			}// create plain blocks.
+			GF_Mutiplication_xts(T,BLOCK_SIZE);
+    		// create tweakable block.
+    	}
+
+    	if (check) {
+            // when ciper text length is not 16 multiples.
+    		// cipertext stealing.
+    		for (j = 0;j < BLOCK_SIZE;j ++){
+    			*(T2 + j) = *(T + j);
+    		}// copy tweakable block to tmp array.
+    		GF_Mutiplication_xts(T,BLOCK_SIZE);
+    		// create tweakable block.
+    		for (j = 0;j < BLOCK_SIZE;j ++){
+    			*(CC + j) = *(T + j) ^ in[ tmp*BLOCK_SIZE + j ];
+    		}// create Additional ciper blocks.
+    		DecryptBlock(CC,PP,roundKeys);
+    		// create CC blocks.
+    		for (j = 0;j < inLen%BLOCK_SIZE;j ++){
+    			out[ (tmp + 1)*BLOCK_SIZE + j ] = *(T + j) ^ *(PP + j);
+    			*(CC + j) = *(T2 + j) ^ in[ (tmp + 1)*BLOCK_SIZE + j ];
+    		}// shift and XOR.
+    		for (j = inLen%BLOCK_SIZE;j < BLOCK_SIZE;j ++){
+    			*(CC + j) = *(T2 + j) ^ *(T + j) ^ *(PP + j);
+    		}// create Additional ciper blocks.
+    		DecryptBlock(CC,PP,roundKeys);
+    		for (j = 0;j < BLOCK_SIZE;j ++){
+    			out[ tmp*BLOCK_SIZE + j ] = *(T2 + j) ^ *(PP + j);
+    		}// create Additional PP blocks.
+    }
+    return out;
 }
 
 

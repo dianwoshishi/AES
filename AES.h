@@ -82,8 +82,8 @@ public:
     unsigned char *DecryptOFB(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv);
 
     // 可调分组密码
-    unsigned char *EncryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned int &outLen);
-    unsigned char *DecryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[]);
+    unsigned char *EncryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv);
+    unsigned char *DecryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv);
 
 
     void printHexArray(unsigned char a[], unsigned int n);
