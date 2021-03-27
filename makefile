@@ -1,6 +1,7 @@
 TARGET = main.out
 # CC = g++
-CFLAGS		= -O2 -Wall
+DEBUG		= -O3
+CFLAGS		= $(DEBUG) -Wall
 SRC = $(wildcard *.cpp)
 OBJ = $(patsubst %.cpp, %.o, $(SRC))
 
@@ -15,6 +16,9 @@ ALL: $(TARGET)
 $(TARGET): $(OBJ)
 	$(CXX) $(CFLAGS) -o $@ $^ 
  
+%.o: %.cpp
+	$(CXX) $(CFLAGS) -c $< -o $@
+
 # 生成测试文件，存放在tmp_file目录下，每个文件随机5*500个字节，总共随机生成10个文件
 gen:
 	# make clean_gen

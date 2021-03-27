@@ -1,8 +1,10 @@
 #include <iostream>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <ctime>
 #include <cstdlib>
+
 #include "AES.h"
 
 using namespace std;
@@ -10,11 +12,18 @@ using namespace std;
 #define mem_size 1024*1024
 
 #define DEBUG 1
-#define fN 10
+#define fN 10 //测试文件的数量
 
-void ECB(AES& aes, uint8_t* key)
+
+typedef unsigned char* (AES::*pEncryptWithoutIV)(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned int &outLen);
+typedef unsigned char* (AES::*pDecryptWithoutIV)(unsigned char in[], unsigned int inLen, unsigned  char key[]);
+typedef unsigned char* (AES::*pEncryptWithIV)(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv, unsigned int &outLen);
+typedef unsigned char* (AES::*pDecryptWithIV)(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv);
+
+
+void testWithoutIV(AES& aes, uint8_t* key, pEncryptWithoutIV encrypt, pDecryptWithoutIV decrypt, string mode)
 {
-    
+    transform(mode.begin(),mode.end(),mode.begin(),::toupper);
     for(int i = 1; i <= fN; i++){
 #ifdef DEBUG
     clock_t time_start=clock();
@@ -39,7 +48,7 @@ void ECB(AES& aes, uint8_t* key)
         unsigned int len = 0;
         unsigned char *out;
         {
-            ofstream enFile(filename + ".ecb.en", ios::binary | ios::out);  //以二进制写模式打开文件
+            ofstream enFile(filename + "."+ mode +".en", ios::binary | ios::out);  //以二进制写模式打开文件
             if (!enFile) {
                 cout << "New file open error." << endl;
                 return ;
@@ -48,7 +57,7 @@ void ECB(AES& aes, uint8_t* key)
             
             
             // aes.printHexArray(plain, length);
-            out = aes.EncryptECB(plain, length, key,  len);
+            out = (aes.*encrypt)(plain, length, key,  len);
             
             enFile.write((char*)out, len);
             enFile.close();
@@ -56,14 +65,14 @@ void ECB(AES& aes, uint8_t* key)
         }
 
         {
-            ofstream deFile(filename + ".ecb.de", ios::binary | ios::out);  //以二进制写模式打开文件
+            ofstream deFile(filename + "." + mode +".de", ios::binary | ios::out);  //以二进制写模式打开文件
             if (!deFile) {
                 cout << "New file open error." << endl;
                 return ;
             }
 
-            out = aes.DecryptECB(out, length, key);
-            printf("ECB_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
+            out = (aes.*decrypt)(out, length, key);
+            printf("%s_AES Decryption: %s\n", mode.c_str(), 0 == memcmp((char*) plain, (char*) out, length) ? "\033[32mSUCCESS!\033[0m" : "\033[**31m**FAILURE!\033[**0m**");
             // aes.printHexArray(out, length);
             deFile.write((char*)out, len);
             deFile.close();
@@ -80,8 +89,10 @@ void ECB(AES& aes, uint8_t* key)
     }
 
 }
-void CBC(AES& aes, uint8_t* key, uint8_t* iv)
+
+void testWithIV(AES& aes, uint8_t* key, unsigned char *iv, pEncryptWithIV encrypt, pDecryptWithIV decrypt, string mode)
 {
+    transform(mode.begin(),mode.end(),mode.begin(),::toupper);
     for(int i = 1; i <= fN; i++){
 #ifdef DEBUG
     clock_t time_start=clock();
@@ -105,7 +116,7 @@ void CBC(AES& aes, uint8_t* key, uint8_t* iv)
 
         inFile.close();
         
-        ofstream enFile(filename + ".cbc.en", ios::binary | ios::out);  //以二进制写模式打开文件
+        ofstream enFile(filename + "."+ mode +".en", ios::binary | ios::out);  //以二进制写模式打开文件
         if (!enFile) {
             cout << "New file open error." << endl;
             return ;
@@ -114,19 +125,19 @@ void CBC(AES& aes, uint8_t* key, uint8_t* iv)
         
         unsigned int len = 0;
         // aes.printHexArray(plain, length);
-        unsigned char *out = aes.EncryptCBC(plain, length, key, iv, len);
+        unsigned char *out = (aes.*encrypt)(plain, length, key, iv, len);
         enFile.write((char*)out, len);
         enFile.close();
         // aes.printHexArray(out, length);
 
-        ofstream deFile(filename + ".cbc.de", ios::binary | ios::out);  //以二进制写模式打开文件
+        ofstream deFile(filename + "."+ mode +".de", ios::binary | ios::out);  //以二进制写模式打开文件
         if (!deFile) {
             cout << "New file open error." << endl;
             return ;
         }
 
-        out = aes.DecryptCBC(out, length, key, iv);
-        printf("CBC_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
+        out = (aes.*decrypt)(out, length, key, iv);
+        printf("%s_AES Decryption: %s\n",mode.c_str(), 0 == memcmp((char*) plain, (char*) out, length) ? "\033[32mSUCCESS!\033[0m" : "\033[**31m**FAILURE!\033[**0m**");
         deFile.write((char*)out, len);
         deFile.close();
         delete []plain;
@@ -137,265 +148,6 @@ void CBC(AES& aes, uint8_t* key, uint8_t* iv)
 #endif // DEBUG
 
     }
-}
-
-void OFB(AES& aes, uint8_t* key, uint8_t* iv)
-{
-    
-    for(int i = 1; i <= fN; i++){
-#ifdef DEBUG
-    clock_t time_start=clock();
-#endif // DEBUG
-        string filename = "tmp_file/" + to_string(i) + ".dat";
-        ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
-        if (!inFile) {
-            cout << "Source file open error." << filename<<  endl;
-            return ;
-        }
-        unsigned int l, length;
-        l = inFile.tellg();
-        inFile.seekg(0, ios::end);
-        length = inFile.tellg();
-        inFile.seekg(0, ios::beg);
-        // length = 16;
-
-        uint8_t *plain = new uint8_t[length];
-        
-        inFile.read((char*)plain, length);
-
-        inFile.close();
-        
-        ofstream enFile(filename + ".ofb.en", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!enFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        
-        unsigned int len = 0;
-        // aes.printHexArray(plain, length);
-        unsigned char *out = aes.EncryptOFB(plain, length, key, iv, len);
-        enFile.write((char*)out, len);
-        enFile.close();
-        // aes.printHexArray(out, length);
-
-        ofstream deFile(filename + ".ofb.de", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!deFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        out = aes.DecryptOFB(out, length, key, iv);
-        printf("OFB_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
-        deFile.write((char*)out, len);
-        deFile.close();
-        delete []plain;
-        delete []out;
-#ifdef DEBUG
-    clock_t time_end=clock();
-    cout<<"time use:"<<1000*(time_end-time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
-#endif // DEBUG
-
-    }
-
-}
-
-void CFB(AES& aes, uint8_t* key, uint8_t* iv)
-{
-    
-    for(int i = 1; i <= fN; i++){
-#ifdef DEBUG
-    clock_t time_start=clock();
-#endif // DEBUG
-        string filename = "tmp_file/" + to_string(i) + ".dat";
-        ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
-        if (!inFile) {
-            cout << "Source file open error." << filename<<  endl;
-            return ;
-        }
-        unsigned int l, length;
-        l = inFile.tellg();
-        inFile.seekg(0, ios::end);
-        length = inFile.tellg();
-        inFile.seekg(0, ios::beg);
-        // length = 16;
-
-        uint8_t *plain = new uint8_t[length];
-        
-        inFile.read((char*)plain, length);
-
-        inFile.close();
-        
-        ofstream enFile(filename + ".cfb.en", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!enFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        
-        unsigned int len = 0;
-        // aes.printHexArray(plain, length);
-        unsigned char *out = aes.EncryptCFB(plain, length, key, iv, len);
-        enFile.write((char*)out, len);
-        enFile.close();
-        // aes.printHexArray(out, length);
-
-        ofstream deFile(filename + ".cfb.de", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!deFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        out = aes.DecryptCFB(out, length, key, iv);
-        printf("CFB_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
-        deFile.write((char*)out, len);
-        deFile.close();
-        delete []plain;
-        delete []out;
-
-#ifdef DEBUG
-    clock_t time_end=clock();
-    cout<<"time use:"<<1000*(time_end-time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
-#endif // DEBUG
-
-    }
-
-}
-
-void CTR(AES& aes, uint8_t* key, uint8_t* iv)
-{
-    
-    for(int i = 1; i <= fN; i++){
-#ifdef DEBUG
-    clock_t time_start=clock();
-#endif // DEBUG
-        string filename = "tmp_file/" + to_string(i) + ".dat";
-        ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
-        if (!inFile) {
-            cout << "Source file open error." << filename<<  endl;
-            return ;
-        }
-        unsigned int l, length;
-        l = inFile.tellg();
-        inFile.seekg(0, ios::end);
-        length = inFile.tellg();
-        inFile.seekg(0, ios::beg);
-        // length = 16;
-
-        uint8_t *plain = new uint8_t[length];
-        
-        inFile.read((char*)plain, length);
-
-        inFile.close();
-        
-        ofstream enFile(filename + ".ctr.en", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!enFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        
-        unsigned int len = 0;
-        // aes.printHexArray(plain, length);
-        unsigned char *out = aes.EncryptCTR(plain, length, key, iv, len);
-        enFile.write((char*)out, len);
-        enFile.close();
-        // aes.printHexArray(out, length);
-
-        ofstream deFile(filename + ".ctr.de", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!deFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        out = aes.DecryptCTR(out, length, key, iv);
-        printf("CTR_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
-        deFile.write((char*)out, len);
-        deFile.close();
-        delete []plain;
-        delete []out;
-
-#ifdef DEBUG
-    clock_t time_end=clock();
-    cout<<"time use:"<<1000*(time_end-time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
-#endif // DEBUG
-
-    }
-
-}
-
-void XTS(AES& aes, uint8_t* key, uint8_t* iv)
-{
-    
-    for(int i = 1; i <= fN; i++){
-#ifdef DEBUG
-    clock_t time_start=clock();
-#endif // DEBUG
-        string filename = "tmp_file/" + to_string(i) + ".dat";
-        ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
-        if (!inFile) {
-            cout << "Source file open error." << filename<<  endl;
-            return ;
-        }
-        unsigned int l, length;
-        l = inFile.tellg();
-        inFile.seekg(0, ios::end);
-        length = inFile.tellg();
-        inFile.seekg(0, ios::beg);
-        // length = 16;
-
-        uint8_t *plain = new uint8_t[length];
-        
-        inFile.read((char*)plain, length);
-
-        inFile.close();
-        
-        ofstream enFile(filename + ".ctr.en", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!enFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        
-        unsigned int len = 0;
-        // aes.printHexArray(plain, length);
-        unsigned char *out = aes.EncryptXTS(plain, length, key, iv);
-        enFile.write((char*)out, len);
-        enFile.close();
-        // aes.printHexArray(out, length);
-
-        ofstream deFile(filename + ".ctr.de", ios::binary | ios::out);  //以二进制写模式打开文件
-        if (!deFile) {
-            cout << "New file open error." << endl;
-            return ;
-        }
-
-        out = aes.DecryptXTS(out, length, key, iv);
-        printf("XTS_AES Decryption: %s\n", 0 == strncmp((char*) plain, (char*) out, length) ? "SUCCESS!" : "FAILURE!");
-        deFile.write((char*)out, len);
-        deFile.close();
-        delete []plain;
-        delete []out;
-
-#ifdef DEBUG
-    clock_t time_end=clock();
-    cout<<"time use:"<<1000*(time_end-time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
-#endif // DEBUG
-
-    }
-
-}
-
-#define random(a,b) (rand()%(b-a)+a)
-uint8_t *getNonce(uint8_t n)
-{
-    uint8_t *nonce = new uint8_t[n];    
-    srand((int)time(0));  // 产生随机种子  把0换成NULL也行
-    for (int i = 0; i < n; i++)
-    {
-        nonce[i] = random(0x00, 0xff);
-    }
-    return nonce;
 }
 
 void ReadBytes(char* filename, uint32_t start, uint32_t len, unsigned char* buf){
@@ -439,19 +191,22 @@ int main(int argc, char *argv[])
     ReadBytes("tmp_file/key.dat", 0, 16, iv);
 
     cout << "ecb" << endl;
-    ECB(aes, key);
+    testWithoutIV(aes, key, &AES::EncryptECB, &AES::DecryptECB, "ecb");
+
     cout << "cbc" << endl;
-    CBC(aes, key, iv);
+    testWithIV(aes, key,iv,  &AES::EncryptCBC, &AES::DecryptCBC, "cbc");
+
     cout << "cfb" << endl;
-    CFB(aes, key, iv);
+    testWithIV(aes, key,iv,  &AES::EncryptCFB, &AES::DecryptCFB, "cfb");
+
     cout << "ofb" << endl;
-    OFB(aes, key, iv);
+    testWithIV(aes, key,iv,  &AES::EncryptOFB, &AES::DecryptOFB, "ofb");
 
     cout << "ctr" << endl;
-    // uint8_t *nonces = new getNonce(16);
-    CTR(aes, key, iv);
+    testWithIV(aes, key,iv,  &AES::EncryptCTR, &AES::DecryptCTR, "ctr");
+
     cout << "xts" << endl;
-    XTS(aes, key, iv);
+    testWithIV(aes, key,iv,  &AES::EncryptXTS, &AES::DecryptXTS, "xts");
 
 	return 0;
 }

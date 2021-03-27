@@ -257,7 +257,7 @@ void GF_Mutiplication_xts(uint8_t *T, int BLOCK_SIZE){
     } 
 }
 
-unsigned char *AES::EncryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv)
+unsigned char *AES::EncryptXTS(unsigned char in[], unsigned int inLen, unsigned char key[], unsigned char *iv, unsigned int &outLen)
 {
     int KEY_SIZE = 4 * this->Nb;
     int BLOCK_SIZE = 4 * this->Nb;
@@ -311,6 +311,7 @@ unsigned char *AES::EncryptXTS(unsigned char in[], unsigned int inLen, unsigned 
 
     	}// when plain text length is not 16 multiples, it's done.
 
+    outLen = inLen;//输入和输出长度一样
     return out;
 }
 
