@@ -3,3 +3,5 @@
 
 tmp_file/*
 aes
+*.o
+*.out
