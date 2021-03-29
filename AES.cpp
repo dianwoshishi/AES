@@ -312,6 +312,10 @@ unsigned char *AES::EncryptXTS(unsigned char in[], unsigned int inLen, unsigned 
     	}// when plain text length is not 16 multiples, it's done.
 
     outLen = inLen;//输入和输出长度一样
+    free(T);
+    free(PP);
+    free(CC);
+    delete []roundKeys;
     return out;
 }
 
@@ -387,6 +391,11 @@ unsigned char *AES::DecryptXTS(unsigned char in[], unsigned int inLen, unsigned 
     			out[ tmp*BLOCK_SIZE + j ] = *(T2 + j) ^ *(PP + j);
     		}// create Additional PP blocks.
     }
+    free(T);
+    free(T2);
+    free(PP);
+    free(CC);
+    delete []roundKeys;
     return out;
 }
 
@@ -568,21 +577,27 @@ void AES::MixSingleColumn(unsigned char *r)
 /* Performs the mix columns step. Theory from: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#The_MixColumns_step */
 void AES::MixColumns(unsigned char** state) 
 {
-  unsigned char *temp = new unsigned char[4];
+  unsigned char s[4], s1[4];
 
   for(int i = 0; i < 4; ++i)
   {
     for(int j = 0; j < 4; ++j)
     {
-      temp[j] = state[j][i]; //place the current state column in temp
+      s[j] = state[j][i]; //place the current state column in temp
     }
-    MixSingleColumn(temp); //mix it using the wiki implementation
+    MixSingleColumn(s); //mix it using the wiki implementation
+    memcpy(s1, s, 4);
+    // s1[0] = mul_bytes(0x02, s[0]) ^ mul_bytes(0x03, s[1]) ^ mul_bytes(0x01, s[2]) ^ mul_bytes(0x01, s[3]);
+    // s1[1] = mul_bytes(0x01, s[0]) ^ mul_bytes(0x02, s[1]) ^ mul_bytes(0x03, s[2]) ^ mul_bytes(0x01, s[3]);
+    // s1[2] = mul_bytes(0x01, s[0]) ^ mul_bytes(0x01, s[1]) ^ mul_bytes(0x02, s[2]) ^ mul_bytes(0x03, s[3]);
+    // s1[3] = mul_bytes(0x03, s[0]) ^ mul_bytes(0x01, s[1]) ^ mul_bytes(0x01, s[2]) ^ mul_bytes(0x02, s[3]);
+
     for(int j = 0; j < 4; ++j)
     {
-      state[j][i] = temp[j]; //when the column is mixed, place it back into the state
+      state[j][i] = s1[j]; //when the column is mixed, place it back into the state
     }
   }
-  delete[] temp;
+
 }
 
 void AES::AddRoundKey(unsigned char **state, unsigned char *key)

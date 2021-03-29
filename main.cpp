@@ -24,10 +24,11 @@ typedef unsigned char* (AES::*pDecryptWithIV)(unsigned char in[], unsigned int i
 void testWithoutIV(AES& aes, uint8_t* key, pEncryptWithoutIV encrypt, pDecryptWithoutIV decrypt, string mode)
 {
     transform(mode.begin(),mode.end(),mode.begin(),::toupper);
-    for(int i = 1; i <= fN; i++){
+    clock_t total = 0;
 #ifdef DEBUG
     clock_t time_start=clock();
 #endif // DEBUG
+    for(int i = 1; i <= fN; i++){
         string filename = "tmp_file/" + to_string(i) + ".dat";
         ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
         if (!inFile) {
@@ -55,10 +56,16 @@ void testWithoutIV(AES& aes, uint8_t* key, pEncryptWithoutIV encrypt, pDecryptWi
             }
 
             
-            
+#ifdef DEBUG
+    clock_t en_time_start=clock();
+#endif // DEBUG                   
             // aes.printHexArray(plain, length);
             out = (aes.*encrypt)(plain, length, key,  len);
-            
+ #ifdef DEBUG
+    clock_t en_time_end=clock();
+    total += en_time_end-en_time_start;
+    cout<<"encrypt time use:"<<1000*(en_time_end-en_time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
+#endif // DEBUG           
             enFile.write((char*)out, len);
             enFile.close();
             // aes.printHexArray(out, length);
@@ -70,8 +77,15 @@ void testWithoutIV(AES& aes, uint8_t* key, pEncryptWithoutIV encrypt, pDecryptWi
                 cout << "New file open error." << endl;
                 return ;
             }
-
+#ifdef DEBUG
+    clock_t de_time_start=clock();
+#endif // DEBUG    
             out = (aes.*decrypt)(out, length, key);
+#ifdef DEBUG
+    clock_t de_time_end=clock();
+    total += de_time_end-de_time_start;
+    cout<<"decrypt time use:"<<1000*(de_time_end-de_time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
+#endif // DEBUG
             printf("%s_AES Decryption: %s\n", mode.c_str(), 0 == memcmp((char*) plain, (char*) out, length) ? "\033[32mSUCCESS!\033[0m" : "\033[**31m**FAILURE!\033[**0m**");
             // aes.printHexArray(out, length);
             deFile.write((char*)out, len);
@@ -80,23 +94,21 @@ void testWithoutIV(AES& aes, uint8_t* key, pEncryptWithoutIV encrypt, pDecryptWi
 
 
         delete []plain;
-        // delete []out;
-#ifdef DEBUG
-    clock_t time_end=clock();
-    cout<<"time use:"<<1000*(time_end-time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
-#endif // DEBUG
+        delete []out;
+
 
     }
+#ifdef DEBUG
+    cout<<"total time use:"<<1000*(total)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
+#endif // DEBUG
 
 }
 
 void testWithIV(AES& aes, uint8_t* key, unsigned char *iv, pEncryptWithIV encrypt, pDecryptWithIV decrypt, string mode)
 {
     transform(mode.begin(),mode.end(),mode.begin(),::toupper);
+    clock_t total = 0;
     for(int i = 1; i <= fN; i++){
-#ifdef DEBUG
-    clock_t time_start=clock();
-#endif // DEBUG
         string filename = "tmp_file/" + to_string(i) + ".dat";
         ifstream inFile(filename, ios::binary | ios::in);  //以二进制读模式打开文件
         if (!inFile) {
@@ -122,10 +134,18 @@ void testWithIV(AES& aes, uint8_t* key, unsigned char *iv, pEncryptWithIV encryp
             return ;
         }
 
-        
+#ifdef DEBUG
+    clock_t en_time_start=clock();
+#endif // DEBUG       
         unsigned int len = 0;
         // aes.printHexArray(plain, length);
         unsigned char *out = (aes.*encrypt)(plain, length, key, iv, len);
+
+#ifdef DEBUG
+    clock_t en_time_end=clock();
+    total += en_time_end-en_time_start;
+    cout<<"encrypt time use:"<<1000*(en_time_end-en_time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
+#endif // DEBUG
         enFile.write((char*)out, len);
         enFile.close();
         // aes.printHexArray(out, length);
@@ -135,19 +155,24 @@ void testWithIV(AES& aes, uint8_t* key, unsigned char *iv, pEncryptWithIV encryp
             cout << "New file open error." << endl;
             return ;
         }
-
+#ifdef DEBUG
+    clock_t de_time_start=clock();
+#endif // DEBUG       
         out = (aes.*decrypt)(out, length, key, iv);
+#ifdef DEBUG
+    clock_t de_time_end=clock();
+    total += de_time_end-de_time_start;
+    cout<<"decrypt time use:"<<1000*(de_time_end-de_time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
+#endif // DEBUG
         printf("%s_AES Decryption: %s\n",mode.c_str(), 0 == memcmp((char*) plain, (char*) out, length) ? "\033[32mSUCCESS!\033[0m" : "\033[**31m**FAILURE!\033[**0m**");
         deFile.write((char*)out, len);
         deFile.close();
         delete []plain;
         delete []out;
-#ifdef DEBUG
-    clock_t time_end=clock();
-    cout<<"time use:"<<1000*(time_end-time_start)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
-#endif // DEBUG
-
     }
+#ifdef DEBUG
+    cout<<"total time use:"<<1000*(total)/(double)CLOCKS_PER_SEC<<"ms"<<endl;
+#endif // DEBUG
 }
 
 void ReadBytes(char* filename, uint32_t start, uint32_t len, unsigned char* buf){
